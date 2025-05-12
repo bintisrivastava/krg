@@ -38,7 +38,7 @@ def parse_relations(response_text):
         response_text = response_text[response_text.find('['):]
         return json.loads(response_text)
     except Exception as e:
-        st.error(f"Failed to parse Gemini output: {e}")
+        st.error(f"Failed to parse output: {e}")
         return []
 
 # Create a graph from triplets
@@ -106,7 +106,8 @@ def extract_text_from_url(url):
 # Streamlit UI setup
 st.set_page_config(page_title="Knowledge Graph Generator", layout="wide")
 st.markdown("<h1 style='color:#00ccff'>Knowledge Graph Generator</h1>", unsafe_allow_html=True)
-st.markdown("Easily generate *interactive* knowledge graphs from raw text, PDF files, or URLs using Google Gemini.")
+st.markdown("Binti Srivastava")
+st.markdown("PEE203 Project")
 
 # Input method selection
 input_type = st.radio("Choose Input Type", ["Text Input", "📎 Upload PDF", "🌐 URL Input"])
