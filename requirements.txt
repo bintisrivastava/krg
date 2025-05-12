@@ -6,4 +6,4 @@ pyvis
 python-dotenv
 requests
 beautifulsoup4
-PyMuPDFpi
+PyMuPDF
