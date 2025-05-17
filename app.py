@@ -1,104 +1,150 @@
 import streamlit as st
-from pyvis.network import Network
-import networkx as nx
+import os
 import google.generativeai as genai
-import requests
-from PyPDF2 import PdfReader
-from bs4 import BeautifulSoup
+import networkx as nx
+from pyvis.network import Network
 import tempfile
 import json
-import re
-import os
+import fitz  # PyMuPDF
+import requests
+from dotenv import load_dotenv
 
-# ---- Gemini Setup ----
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
-model = genai.GenerativeModel("gemini-2.0-flash")
+# Load environment variables
+load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# ---- Utility Functions ----
-def extract_text_from_pdf(file):
-    reader = PdfReader(file)
-    return "\n".join([page.extract_text() or "" for page in reader.pages])
+# --- Wikidata Ontology Enrichment ---
+def enrich_entity_with_wikidata(entity):
+    query = f'''
+    SELECT ?item ?itemLabel ?description WHERE {{
+      ?item ?label "{entity}"@en.
+      ?item schema:description ?description.
+      FILTER (lang(?description) = "en")
+      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+    }} LIMIT 1
+    '''
+    url = "https://query.wikidata.org/sparql"
+    headers = {"Accept": "application/json"}
+    response = requests.get(url, params={'query': query}, headers=headers)
 
-def extract_text_from_url(url):
     try:
-        r = requests.get(url, timeout=10)
-        soup = BeautifulSoup(r.content, 'html.parser')
-        return "\n".join(p.get_text() for p in soup.find_all(['p', 'h1', 'h2']))
-    except:
-        return ""
+        data = response.json()
+        bindings = data['results']['bindings']
+        if bindings:
+            return bindings[0]['description']['value']
+    except Exception:
+        pass
+    return "No description found."
 
-def extract_relations_with_gemini(text):
-    prompt = (
-        "Extract subject-predicate-object relations from the text below.\n"
-        "Return as JSON: [{\"subject\": \"...\", \"relation\": \"...\", \"object\": \"...\"}]\n"
-        f"Text:\n{text[:4000]}"
-    )
+# --- Gemini Relation Extraction ---
+def extract_relations_gemini(text):
+    model = genai.GenerativeModel('gemini-1.5-pro')  # use the most powerful model
+    prompt = f"""
+    Extract key entity–relation–entity triples from the text below.
+
+    Format:
+    [
+      {{"subject": "Entity1", "relation": "Relation", "object": "Entity2"}},
+      ...
+    ]
+
+    Text:
+    {text}
+    """
+    response = model.generate_content(prompt)
+    return response.text
+
+def parse_relations(response_text):
     try:
-        response = model.generate_content(prompt)
-        json_text = re.search(r"\[.*\]", response.text, re.DOTALL).group(0)
-        return json.loads(json_text)
-    except:
+        first_brace = response_text.find('[')
+        if first_brace != -1:
+            response_text = response_text[first_brace:]
+        triples = json.loads(response_text)
+        return triples
+    except Exception as e:
+        st.error(f"Failed to parse JSON: {e}")
         return []
 
-def enrich_entity_with_wikidata(entity):
-    try:
-        query = f"""
-        SELECT ?item ?itemLabel ?description WHERE {{
-          ?item ?label "{entity}"@en.
-          ?item schema:description ?description.
-          FILTER(LANG(?description) = "en")
-          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
-        }} LIMIT 1
-        """
-        r = requests.get("https://query.wikidata.org/sparql", params={"query": query}, headers={"Accept": "application/json"})
-        results = r.json()["results"]["bindings"]
-        if results:
-            return results[0]["description"]["value"]
-    except:
-        return ""
-    return ""
+# --- Graph Construction with Enrichment ---
+def build_graph(triples):
+    g = nx.DiGraph()
+    node_data = {}
 
-def build_knowledge_graph(text):
-    relations = extract_relations_with_gemini(text)
-    G = nx.MultiDiGraph()
-    for triple in relations:
-        subj, rel, obj = triple["subject"], triple["relation"], triple["object"]
-        G.add_node(subj, label="Entity", description=enrich_entity_with_wikidata(subj))
-        G.add_node(obj, label="Entity", description=enrich_entity_with_wikidata(obj))
-        G.add_edge(subj, obj, label=rel)
-    return G
+    for triplet in triples:
+        subj = triplet['subject']
+        obj = triplet['object']
+        rel = triplet['relation']
 
-def render_graph(G):
-    net = Network(height="600px", width="100%", directed=True)
-    for n, data in G.nodes(data=True):
-        net.add_node(n, label=n, title=data.get("description", ""), group=data.get("label", "Entity"))
-    for u, v, data in G.edges(data=True):
-        net.add_edge(u, v, label=data["label"])
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
-    net.save_graph(tmp_file.name)
-    return tmp_file.name
+        # Add nodes with ontology enrichment
+        if subj not in node_data:
+            node_data[subj] = enrich_entity_with_wikidata(subj)
+        if obj not in node_data:
+            node_data[obj] = enrich_entity_with_wikidata(obj)
 
-# ---- Streamlit UI ----
-st.set_page_config(layout="wide")
-st.title("🧠 Advanced Knowledge Graph Generator (Streamlit + Gemini)")
+        g.add_node(subj, title=node_data[subj])
+        g.add_node(obj, title=node_data[obj])
+        g.add_edge(subj, obj, label=rel)
 
-input_type = st.radio("Choose input type:", ["Text", "PDF", "URL"])
+    return g
 
-text_input = ""
+# --- Interactive Graph Visualization ---
+def visualize_graph(g):
+    net = Network(height="600px", width="100%", directed=True, notebook=False)
+    net.from_nx(g)
+
+    for node in net.nodes:
+        node['title'] = g.nodes[node['id']].get('title', "")
+        node['label'] = node['id']
+        node['shape'] = 'dot'
+        node['size'] = 20
+
+    temp_dir = tempfile.mkdtemp()
+    path = os.path.join(temp_dir, "graph.html")
+    net.show_buttons(filter_=['physics'])
+    net.save_graph(path)
+    return path
+
+# --- PDF Text Extraction ---
+def extract_text_from_pdf(uploaded_file):
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    text = "\n".join(page.get_text() for page in doc)
+    return text
+
+# --- Streamlit UI ---
+st.set_page_config(page_title="Advanced Knowledge Graph Generator", layout="wide")
+st.title("🔍 Advanced Knowledge Graph Generator")
+
+input_type = st.radio("Select Input Type", ["Text", "PDF File", "Web URL"])
+
+content = ""
 if input_type == "Text":
-    text_input = st.text_area("Enter text", height=200)
-elif input_type == "PDF":
-    uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
+    content = st.text_area("Paste your content here", height=300)
+elif input_type == "PDF File":
+    uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     if uploaded_file:
-        text_input = extract_text_from_pdf(uploaded_file)
-elif input_type == "URL":
-    url = st.text_input("Enter URL")
-    if url:
-        text_input = extract_text_from_url(url)
+        content = extract_text_from_pdf(uploaded_file)
+elif input_type == "Web URL":
+    url = st.text_input("Enter the URL:")
+    if url and st.button("Fetch Content"):
+        try:
+            response = requests.get(url)
+            content = response.text
+        except Exception as e:
+            st.error(f"Failed to fetch content: {e}")
 
-if st.button("Generate Knowledge Graph") and text_input.strip():
-    with st.spinner("Extracting relations and building graph..."):
-        G = build_knowledge_graph(text_input)
-        graph_path = render_graph(G)
-    st.success("Graph generated!")
-    st.components.v1.html(open(graph_path, "r").read(), height=700, scrolling=True)
+if st.button("Generate Knowledge Graph"):
+    if not content.strip():
+        st.warning("Please provide content to analyze.")
+    else:
+        with st.spinner("Analyzing and building graph..."):
+            response_text = extract_relations_gemini(content)
+            triples = parse_relations(response_text)
+
+            if triples:
+                g = build_graph(triples)
+                graph_path = visualize_graph(g)
+
+                st.success("✅ Knowledge Graph Generated!")
+                st.components.v1.html(open(graph_path, 'r', encoding='utf-8').read(), height=600)
+            else:
+                st.warning("⚠️ No relationships found.")
