@@ -8,3 +8,4 @@ requests
 beautifulsoup4
 PyMuPDF
 gunicorn
+PyPDF2
