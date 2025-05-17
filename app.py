@@ -38,7 +38,7 @@ def enrich_entity_with_wikidata(entity):
 
 # --- Gemini Relation Extraction ---
 def extract_relations_gemini(text):
-    model = genai.GenerativeModel('gemini-1.5-pro')  # use the most powerful model
+    model = genai.GenerativeModel('gemini-2.0-flash')
     prompt = f"""
     Extract key entity–relation–entity triples from the text below.
 
@@ -111,8 +111,8 @@ def extract_text_from_pdf(uploaded_file):
     return text
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Advanced Knowledge Graph Generator", layout="wide")
-st.title("🔍 Advanced Knowledge Graph Generator")
+st.set_page_config(page_title="Knowledge Graph Generator", layout="wide")
+st.title("Knowledge Graph Generator")
 
 input_type = st.radio("Select Input Type", ["Text", "PDF File", "Web URL"])
 
