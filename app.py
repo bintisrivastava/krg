@@ -5,6 +5,7 @@ import networkx as nx
 from pyvis.network import Network
 import tempfile
 import json
+import re
 import fitz  # PyMuPDF
 import requests
 from bs4 import BeautifulSoup
@@ -47,13 +48,16 @@ def extract_relations_gemini(text):
     response = model.generate_content(prompt)
     return response.text
     
-# ---------------------- Parser ----------------------
 def parse_relations(response_text):
     try:
-        first_brace = response_text.find('[')
-        if first_brace != -1:
-            response_text = response_text[first_brace:]
-        triples = json.loads(response_text)
+        # Use regex to find the first JSON array (from first [ to matching ])
+        pattern = re.compile(r'\[\s*(?:\{.*?\}\s*,?\s*)*\]')
+        match = pattern.search(response_text, re.DOTALL)
+        if not match:
+            raise ValueError("No JSON array found in the response.")
+        json_text = match.group()
+        triples = json.loads(json_text)
+        # Validate keys
         for t in triples:
             for key in ['subject', 'subject_type', 'relation', 'object', 'object_type', 'context']:
                 if key not in t:
