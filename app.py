@@ -28,7 +28,7 @@ def extract_relations_gemini(text):
     - object_type
     - context (sentence or phrase it came from)
 
-    ⚠️ Return output strictly in this JSON array format:
+     Return output strictly in this JSON array format:
     [
       {{
         "subject": "Entity1",
@@ -46,6 +46,7 @@ def extract_relations_gemini(text):
     """
     response = model.generate_content(prompt)
     return response.text
+    
 # ---------------------- Parser ----------------------
 def parse_relations(response_text):
     try:
@@ -121,8 +122,8 @@ def extract_text_from_url(url):
         return ""
 
 # ---------------------- Streamlit App ----------------------
-st.set_page_config(page_title="Advanced Knowledge Graph Generator", layout="wide")
-st.title("🌐 Advanced Knowledge Representation Graph")
+st.set_page_config(page_title="Knowledge Graph Generator", layout="wide")
+st.title("Knowledge Representation Graph")
 
 input_type = st.radio("Select Input Type", ["Text", "PDF File", "URL"])
 content = ""
@@ -144,7 +145,7 @@ if st.button("Generate Knowledge Graph"):
     if not content.strip():
         st.warning("Please provide content to analyze.")
     else:
-        with st.spinner("Analyzing with Gemini..."):
+        with st.spinner("Analyzing..."):
             response_text = extract_relations_gemini(content)
             triples = parse_relations(response_text)
             if triples:
