@@ -154,4 +154,4 @@ if st.button("Generate Knowledge Graph"):
                 st.success("Knowledge Graph Generated!")
                 st.components.v1.html(open(graph_path, 'r', encoding='utf-8').read(), height=600)
             else:
-                st.warning("⚠️ No relationships found.")
+                st.warning("No relationships found")
