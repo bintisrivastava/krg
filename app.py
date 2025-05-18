@@ -84,7 +84,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-input_type = st.radio("Select Input Type", ["Text", "PDF File"])
+input_type = st.radio("Please select the input type", ["Text", "PDF File"])
 
 content = ""
 if input_type == "Text":
@@ -94,9 +94,9 @@ elif input_type == "PDF File":
     if uploaded_file:
         content = extract_text_from_pdf(uploaded_file)
 
-if st.button("Generate Knowledge Graph"):
+if st.button("Generate Knowledge Representation Graph"):
     if not content.strip():
-        st.warning("Please provide content to analyze.")
+        st.warning("Please provide content to build the graph.")
     else:
         with st.spinner("Building the graph"):
             response_text = extract_relations_gemini(content)
@@ -106,7 +106,7 @@ if st.button("Generate Knowledge Graph"):
                 g = build_graph(triples)
                 graph_path = visualize_graph(g)
 
-                st.success("Knowledge Graph Generated Successfully!")
+                st.success("Knowledge Representation Graph Generated Successfully!")
                 st.components.v1.html(open(graph_path, 'r', encoding='utf-8').read(), height=500)
             else:
                 st.warning("No relationships found.")
