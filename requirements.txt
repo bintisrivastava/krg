@@ -9,3 +9,4 @@ beautifulsoup4
 PyMuPDF
 gunicorn
 PyPDF2
+newspaper3k
