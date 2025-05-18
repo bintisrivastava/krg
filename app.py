@@ -7,7 +7,6 @@ import tempfile
 import json
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
-from newspaper import Article  # For URL extraction
 
 # Load environment variables
 load_dotenv()
@@ -19,7 +18,7 @@ def extract_relations_gemini(text):
     prompt = f"""
     Analyze the following text and extract all important entity-relation-entity triplets.
 
-    ⚡ Return the output ONLY in this exact JSON array format, without any explanation, without code block, without comments.
+     Return the output ONLY in this exact JSON array format, without any explanation, without code block, without comments.
     [
     {{"subject": "Entity1", "relation": "Relationship", "object": "Entity2"}},
     ...
@@ -64,88 +63,42 @@ def extract_text_from_pdf(uploaded_file):
     text = "\n".join(page.get_text() for page in doc)
     return text
 
-def extract_text_from_url(url):
-    article = Article(url)
-    article.download()
-    article.parse()
-    return article.text
-
-# Streamlit Page Setup and Styling
+# Streamlit App
 st.set_page_config(page_title="Knowledge Graph Generator", layout="wide")
-
-st.markdown("""
-    <style>
-    #MainMenu, footer {visibility: hidden;}
-    body {
-        background-color: #f5f7fa;
-        font-family: 'Segoe UI', sans-serif;
-    }
-    .title {
-        font-size: 3em;
-        font-weight: bold;
-        color: #1f77b4;
+st.title("🔗 Knowledge Representation Graph Generator")
+st.markdown(
+    """
+    <div style='
+        background-color: #f0f2f6;
+        padding: 10px 20px;
+        border-radius: 10px;
         text-align: center;
-        padding-bottom: 0.5em;
-    }
-    .stRadio > div {
-        flex-direction: row !important;
-        justify-content: center;
-        margin-bottom: 2em;
-    }
-    textarea {
-        font-family: monospace;
-        font-size: 15px;
-        border-radius: 10px;
-        padding: 10px;
-        border: 1px solid #ccc;
-    }
-    .stButton > button {
-        background-color: #1f77b4;
-        color: white;
-        padding: 0.6em 2em;
-        border-radius: 10px;
         font-size: 16px;
         font-weight: bold;
-        margin-top: 20px;
-        transition: background-color 0.3s;
-    }
-    .stButton > button:hover {
-        background-color: #155d8b;
-    }
-    </style>
-""", unsafe_allow_html=True)
+        color: #333;
+        margin-bottom: 25px;
+    '>
+        Submitted by: Binti Srivastava &nbsp;&nbsp; | &nbsp;&nbsp; Roll No: 2306711
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-st.markdown('<div class="title">🔗 Knowledge Representation Graph Generator</div>', unsafe_allow_html=True)
-
-# Input Type Selection
-input_type = st.radio("Select Input Type", ["Text", "PDF File", "URL"])
+input_type = st.radio("Select Input Type", ["Text", "PDF File"])
 
 content = ""
-
 if input_type == "Text":
-    content = st.text_area("Paste your content here", height=300)
-
+    content = st.text_area("Paste your content here", height=400)
 elif input_type == "PDF File":
     uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     if uploaded_file:
         content = extract_text_from_pdf(uploaded_file)
 
-elif input_type == "URL":
-    url = st.text_input("Enter a URL to extract content from:")
-    if url:
-        try:
-            content = extract_text_from_url(url)
-            st.success("Content extracted successfully!")
-            content = st.text_area("Extracted Content (editable):", value=content, height=300)
-        except Exception as e:
-            st.error(f"Failed to extract content from URL: {e}")
-
-# Generate Button
 if st.button("Generate Knowledge Graph"):
     if not content.strip():
         st.warning("Please provide content to analyze.")
     else:
-        with st.spinner("Analyzing..."):
+        with st.spinner("Building the graph"):
             response_text = extract_relations_gemini(content)
             triples = parse_relations(response_text)
 
@@ -154,9 +107,6 @@ if st.button("Generate Knowledge Graph"):
                 graph_path = visualize_graph(g)
 
                 st.success("Knowledge Graph Generated Successfully!")
-                with open(graph_path, 'r', encoding='utf-8') as f:
-                    graph_html = f.read()
-                st.components.v1.html(graph_html, height=600, scrolling=True)
+                st.components.v1.html(open(graph_path, 'r', encoding='utf-8').read(), height=500)
             else:
-                st.warning("No relationships found.")
-
+                st.warning("No relationships found.")
