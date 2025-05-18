@@ -65,7 +65,7 @@ def extract_text_from_pdf(uploaded_file):
 
 # Streamlit App
 st.set_page_config(page_title="Knowledge Graph Generator", layout="wide")
-st.title("🔗 Knowledge Representation Graph Generator")
+st.title("PEE203 Project: Knowledge Representation Graph Generator")
 st.markdown(
     """
     <div style='
